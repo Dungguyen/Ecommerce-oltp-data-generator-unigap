@@ -1,0 +1,38 @@
+
+
+services:
+
+  postgres:
+
+    image: postgres:17
+
+    container_name: ecommerce_postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: nguyendung
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: ecommerce_oltp
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
+
+  app:
+
+    build: .
+
+    container_name: ecommerce_generator
+
+    depends_on:
+      - postgres
+
+    env_file:
+      - .env
+
+volumes:
+  postgres_data:
