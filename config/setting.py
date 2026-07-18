@@ -1,0 +1,26 @@
+"""
+Global settings for the project.
+"""
+
+# Faker
+FAKER_LOCALE = "vi_VN"
+
+# Dataset size
+NUM_BRANDS = 20
+NUM_SELLERS = 500
+NUM_CUSTOMERS = 5000
+NUM_PRODUCTS = 20000
+NUM_ORDERS = 50000
+NUM_ORDER_ITEMS = 150000
+NUM_PROMOTIONS = 100
+NUM_PROMOTION_PRODUCTS = 5000
+
+# Batch insert
+BATCH_SIZE = 5000
+
+# Fixed values
+DEFAULT_COUNTRY = "Vietnam"
+
+# Date range
+START_DATE = "2024-01-01"
+END_DATE = "2024-12-31"
