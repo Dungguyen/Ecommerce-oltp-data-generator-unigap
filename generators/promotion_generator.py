@@ -1,10 +1,9 @@
 import random
 from datetime import date, timedelta
-from typing import List
-
+from collections.abc import Iterator
 from psycopg import Connection
 
-from config.setting import NUM_PROMOTIONS
+from config.setting import BATCH_SIZE, NUM_PROMOTIONS, PROMOTION_CREATED_END, PROMOTION_CREATED_START
 from data.promotions import (
     PROMOTION_NAMES,
     PROMOTION_TYPES,
@@ -14,16 +13,18 @@ from data.promotions import (
 )
 from utils.faker_utils import fake
 from utils.logger import logger
+from core.batch_insert import batch_insert
 
-def generate_promotions(
-    num_records: int = NUM_PROMOTIONS,
-) -> List[tuple]:
-    
-    promotions =[]
+def generate_promotions_batches(
+    total_records: int = NUM_PROMOTIONS, 
+    batch_size: int = BATCH_SIZE, 
+) -> Iterator[list[tuple]]:
 
-    for _ in range(num_records):
+    batch = []
 
-        promotion_name = random.choice(PROMOTION_NAMES)
+    for i in range(total_records):
+
+        promotion_name = (random.choice(PROMOTION_NAMES) + f" #{i+1}")
 
         promotion_type = random.choice(PROMOTION_TYPES)
 
@@ -35,8 +36,8 @@ def generate_promotions(
             discount_value = random.choice(FIXED_AMOUNT_VALUES)
 
         created_at = fake.date_time_between(
-            start_date="-6M",
-            end_date="-4M"
+            start_date=PROMOTION_CREATED_START,
+            end_date=PROMOTION_CREATED_END,
         )
 
         start_date = fake.date_between(
@@ -48,7 +49,7 @@ def generate_promotions(
             days = random.randint(30,60)
         )
 
-        promotions.append(
+        batch.append(
             (
                 promotion_name,
                 promotion_type,
@@ -59,8 +60,11 @@ def generate_promotions(
                 created_at,
             )
         )
-
-    return promotions
+        if len(batch) >= BATCH_SIZE:
+            yield batch
+            batch = []
+    if batch:   
+        yield batch
 
 def insert_promotions(
     conn: Connection,
@@ -88,18 +92,11 @@ def insert_promotions(
         
         """
     
-    data = generate_promotions(num_records)
+    data = generate_promotions_batches(num_records)
 
-    try:
-        with conn.cursor() as cursor:
-            cursor.executemany(sql, data)
-        conn.commit()
-
-        logger.info(
-            "Inserted %s promotions.",
-            len(data),
-        )
-    except Exception:
-        conn.rollback()
-
-        raise
+    batch_insert(
+    conn=conn,
+    sql=sql,
+    generator=generate_promotions_batches(total_records=num_records),
+    entity_name="promotions",
+)

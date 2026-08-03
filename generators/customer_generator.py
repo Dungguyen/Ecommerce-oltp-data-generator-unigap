@@ -1,53 +1,55 @@
 import random   
 import uuid
-from datetime import datetime   
-from typing import List
+from typing import Iterator
 
 from psycopg import Connection
-
+from core.batch_insert import batch_insert
 from data.constants import GENDERS
 from utils.faker_utils import fake
-from config.setting import NUM_CUSTOMERS
-from utils.logger import logger
+from config.setting import (
+    DATA_START_DATE,
+    DATA_END_DATE,
+    BATCH_SIZE,
+    NUM_CUSTOMERS,
+)
 
-CREATED_AT_START = datetime(2024, 1, 1)
-CREATED_AT_END = datetime(2024, 12, 31)
+def generate_customers_batches(
+    total_records: int = NUM_CUSTOMERS,
+    batch_size: int = BATCH_SIZE,
+) -> Iterator[list[tuple]]:
 
+    generated = 0
 
-def generate_customers(num_records: int = NUM_CUSTOMERS) -> List[tuple]:
+    while generated < total_records:
 
-    customers = []
+        batch = []
 
-    used_emails = set()
-    used_phones = set()
+        while len(batch) < batch_size and generated < total_records:
 
-    while len(customers) < num_records:
-
-        email = f"{uuid.uuid4().hex}@gmail.com"
-        phone = "09" + "".join(random.choices("0123456789", k = 8))
-
-        if email in used_emails or phone in used_phones:
-            continue
-
-        used_emails.add(email)
-        used_phones.add(phone)
-
-        customers.append(
-            (
-                fake.name(),
-                email,
-                phone,
-                random.choice(GENDERS),
-                fake.address(),
-                fake.city(),
-                fake.date_time_between(start_date=CREATED_AT_START, end_date=CREATED_AT_END),
+            batch.append(
+                (
+                    fake.name(),
+                    f"{uuid.uuid4().hex}@gmail.com",
+                    "09" + "".join(random.choices("0123456789", k=8)),
+                    random.choice(GENDERS),
+                    fake.address(),
+                    fake.city(),
+                    fake.date_time_between(
+                        start_date=DATA_START_DATE,
+                        end_date=DATA_END_DATE,
+                    ),
+                )
             )
-        )
-    return customers
+
+            generated += 1
+
+        if batch:
+            yield batch
 
 def insert_customers(
-    conn : Connection,
-    num_records: int = 5000,
+    conn: Connection,
+    total_records: int = NUM_CUSTOMERS,
+    batch_size: int = BATCH_SIZE,
 ) -> None:
     
     sql = """
@@ -65,18 +67,14 @@ def insert_customers(
         VALUES (%s,%s,%s,%s,%s,%s,%s)
 
         ON CONFLICT DO NOTHING;
-
 """
-    data = generate_customers(num_records)
 
-    try:
-        
-        with conn.cursor() as cursor:
-            cursor.executemany(sql,data)
-        conn.commit()
-
-        logger.info("Inserted %s customer.", len(data))
-    except Exception:
-        conn.rollback()
-
-        raise
+    batch_insert(
+    conn=conn,
+    sql=sql,
+    generator=generate_customers_batches(
+        total_records=total_records,
+        batch_size=batch_size,
+    ),
+    entity_name="customers",
+)

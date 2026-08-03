@@ -6,9 +6,11 @@ from psycopg import Connection
 from data.categories import CATEGORY_DATA
 from utils.faker_utils import fake
 
-
-CREATED_AT_START = datetime(2024, 1, 1)
-CREATED_AT_END = datetime(2024, 12, 31)
+from utils.logger import logger
+from config.setting import (
+    DATA_START_DATE,
+    DATA_END_DATE,
+)
 
 
 def generate_parent_categories() -> List[tuple]:
@@ -26,8 +28,8 @@ def generate_parent_categories() -> List[tuple]:
                 None,
                 1,
                 fake.date_time_between(
-                    start_date=CREATED_AT_START,
-                    end_date=CREATED_AT_END
+                    start_date=DATA_START_DATE,
+                    end_date=DATA_END_DATE
                 )
             )
         )
@@ -55,8 +57,8 @@ def generate_sub_categories(category_map: dict) -> List[tuple]:
                     parent_id,
                     2,
                     fake.date_time_between(
-                        start_date=CREATED_AT_START,
-                        end_date=CREATED_AT_END
+                        start_date=DATA_START_DATE,
+                        end_date=DATA_END_DATE
                     )
                 )
             )
@@ -126,10 +128,12 @@ def insert_categories(conn: Connection):
 
     conn.commit()
 
-    print(
-        f"Inserted {len(parent_data)} parent categories."
+    logger.info(
+        "Inserted %s parent categories.",
+        len(parent_data),
     )
 
-    print(
-        f"Inserted {len(child_data)} sub categories."
+    logger.info(
+        "Inserted %s sub categories.",
+        len(child_data),
     )

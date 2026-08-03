@@ -1,43 +1,75 @@
-from typing import List
 import random
-
+from typing import Iterator
 from psycopg import Connection
+
+from config.setting import (
+    DATA_START_DATE,
+    DATA_END_DATE,
+)
+
 from data.brands import BRANDS
 from utils.faker_utils import fake
-from datetime import datetime
 from utils.logger import logger
+from core.batch_insert import batch_insert
 
-COUNTRIES = ["Vietnam", "USA", "Japan", "Germany", "France", "Italy", "China", "South Korea", "India", "Brazil"]
+COUNTRIES = [
+    "Vietnam",
+    "USA",
+    "Japan",
+    "Germany",
+    "France",
+    "Italy",
+    "China",
+    "South Korea",
+    "India",
+    "Brazil",
+]
 
-def generate_brands() -> List[tuple]:
-    brands = []
-    CREATED_AT_START = datetime(2024, 1, 1)
-    CREATED_AT_END = datetime(2024, 12, 31)
+
+def generate_brands_batches() -> Iterator[list[tuple]]:
+
+    batch = []
 
     for brand in BRANDS:
-        brands.append(
+
+        batch.append(
             (
                 brand,
                 random.choice(COUNTRIES),
-                fake.date_time_between(start_date=CREATED_AT_START, end_date=CREATED_AT_END),
+                fake.date_time_between(
+                    start_date=DATA_START_DATE,
+                    end_date=DATA_END_DATE,
+                ),
             )
         )
-    return brands
+
+    yield batch
+
 
 def insert_brands(conn: Connection) -> None:
+
     sql = """
-        INSERT INTO brand (brand_name, country, created_at)
-        VALUES (%s, %s, %s)
+        INSERT INTO brand
+        (
+            brand_name,
+            country,
+            created_at
+        )
+
+        VALUES
+        (
+            %s,
+            %s,
+            %s
+        )
+
         ON CONFLICT (brand_name)
         DO NOTHING;
     """
-    data = generate_brands()
-    try:
-        with conn.cursor() as cursor:
-            cursor.executemany(sql, data)
-        conn.commit()
-        logger.info("Inserted %s brands", len(data))
-    except Exception as e:
-        conn.rollback()
-        print(f"Error inserting brands: {e}")   
-        raise
+
+    batch_insert(
+        conn=conn,
+        sql=sql,
+        generator=generate_brands_batches(),
+        entity_name="brands",
+    )

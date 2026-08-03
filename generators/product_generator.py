@@ -1,8 +1,13 @@
 import random
 from datetime import datetime
-from typing import List
+from typing import Iterator
 from psycopg import Connection
-
+from config.setting import (
+    PRODUCTS_PER_BRAND,
+    BATCH_SIZE,
+    DATA_START_DATE,
+    DATA_END_DATE,
+)
 from utils.faker_utils import fake
 from data.product_catalog import PRODUCT_CATALOG
 from data.product_rules import (
@@ -11,9 +16,7 @@ from data.product_rules import (
     RATING_VALUES,
     RATING_WEIGHTS,
 )
-
-CREATED_AT_START = datetime(2024, 1, 1)
-CREATED_AT_END = datetime(2024, 12, 31)
+from core.batch_insert import batch_insert
 
 def load_brands(conn: Connection):
     with conn.cursor() as cur:
@@ -45,21 +48,22 @@ def load_sellers(conn: Connection):
 
         return [row[0] for row in cur.fetchall()]
     
-def generate_products(
+def generate_products_batches(
     conn: Connection,
-    products_per_brand: int = 40
-) -> List[tuple]:
-    
+    products_per_brand: int = PRODUCTS_PER_BRAND,
+    batch_size: int = BATCH_SIZE
+) -> Iterator[list[tuple]]:
+
     brands = load_brands(conn)
     categories = load_categories(conn)
     sellers = load_sellers(conn)
 
     category_dict = {
-        name : category_id
-        for category_id, name in categories
+        category_name : category_id
+        for category_id, category_name in categories
     }
 
-    products = []
+    batch = []
 
     for brand_id, brand_name in brands:
         if brand_name not in PRODUCT_CATALOG:
@@ -77,54 +81,44 @@ def generate_products(
             min_stock, max_stock = STOCK_RULES[category_name]
 
             for _ in range(products_per_brand):
-                product_name = random.choice(product_names)
 
-                description = fake.paragraph(nb_sentences=3)
-
-                price = round(
-                    random.uniform(min_price,max_price), 2
-                )
-
-                stock_quantity = random.randint(
-                    min_stock,
-                    max_stock
-                )
-
-                rating = random.choices(
-                    RATING_VALUES,
-                    weights=RATING_WEIGHTS,
-                    k=1
-                )[0]
-
-                sellers_id = random.choice(sellers)
-
-                created_at = fake.date_time_between(
-                    start_date=CREATED_AT_START,
-                    end_date=CREATED_AT_END
-                )
-
-                products.append(
+                batch.append(
                     (
-                        product_name,
+                        random.choice(product_names),
                         category_id,
                         brand_id,
-                        sellers_id,
-                        price,
-                        stock_quantity,
-                        rating,
-                        created_at,
-                        True
+                        random.choice(sellers),
+                        round(random.uniform(min_price, max_price), 2),
+                        random.randint(min_stock, max_stock),
+                        random.choices(
+                            RATING_VALUES,
+                            weights=RATING_WEIGHTS,
+                            k=1
+                        )[0],
+                        fake.date_time_between(
+                            start_date=DATA_START_DATE,
+                            end_date=DATA_END_DATE
+                        ),
+                        True,
                     )
                 )
+                if len(batch) >= batch_size:
+                    yield batch
+                    batch = []
 
-    return products
+    if batch:   
+        yield batch
 
-def insert_products(conn: Connection):
+def insert_products(
+    conn: Connection,
+    products_per_brand: int = PRODUCTS_PER_BRAND,
+    batch_size: int = BATCH_SIZE,
+) -> None:
 
-    sql ="""
+    sql = """
         INSERT INTO product
         (
-            product_name, 
+            product_name,
             category_id,
             brand_id,
             seller_id,
@@ -134,25 +128,22 @@ def insert_products(conn: Connection):
             created_at,
             is_active
         )
-
         VALUES
         (
             %s,%s,%s,%s,%s,%s,%s,%s,%s
-        )
-        
+        );
     """
 
-    data = generate_products(conn)
-
-    try:
-        with conn.cursor() as cur:
-            cur.executemany(sql, data)
-        conn.commit()
-        print(f"Inserted, {len(data)} products.")
-    except Exception as e:
-
-        conn.rollback()
-        raise
+    batch_insert(
+        conn=conn,
+        sql=sql,
+        generator=generate_products_batches(
+            conn,
+            products_per_brand=products_per_brand,
+            batch_size=batch_size,
+        ),
+        entity_name="products",
+    )
 
             
     

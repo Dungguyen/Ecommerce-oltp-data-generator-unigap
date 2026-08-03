@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS brand (
     brand_id SERIAL PRIMARY KEY,
     brand_name VARCHAR(255) NOT NULL UNIQUE,
-    coutry VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOT NULL
+    country VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL
 );
 --------------------------
 CREATE TABLE IF NOT EXISTS category (
@@ -23,11 +23,11 @@ CREATE TABLE IF NOT EXISTS seller (
     seller_id SERIAL PRIMARY KEY,
     seller_name VARCHAR(150) NOT NULL,
     join_date DATE NOT NULL,
-    seller_type VARCHAR(50) NOT NULL),
+    seller_type VARCHAR(50) NOT NULL,
     rating DECIMAL(2, 1) NOT NULL,
     country VARCHAR(50) NOT NULL,
 
-    CONSTRAINT chk_seller_type CHECK (seller_type IN ('Official', 'Marketing')),
+    CONSTRAINT chk_seller_type CHECK (seller_type IN ('Official', 'Marketplace')),
     CONSTRAINT chk_rating CHECK (rating >= 0 AND rating <= 5)
 );
 ---------------------------
@@ -40,9 +40,9 @@ CREATE TABLE IF NOT EXISTS customer (
     address varchar(255),
     city VARCHAR(100),
     state VARCHAR(100),
-    created_at TIMESTAMP NOT NULL DEFAULT ,
+    created_at TIMESTAMP NOT NULL ,
 
-    CONSTRAINT chk_gender CHECK (gender IN ('Male', 'Female')   )
+    CONSTRAINT chk_gender CHECK (gender IN ('Male', 'Female'))
 );
 ---------------------------
 CREATE TABLE IF NOT EXISTS product (
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS product (
     price DECIMAL(12, 2) NOT NULL CHECK (price >= 0),
     stock_quantity INT NOT NULL CHECK (stock_quantity >= 0),
     rating DECIMAL(2, 1) NOT NULL CHECK (rating >= 0 AND rating <= 5),
-    created_at TIMESTAMP NOT NULL DEFAULT ,
+    created_at TIMESTAMP NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
 
     CONSTRAINT fk_brand
@@ -77,12 +77,12 @@ CREATE TABLE IF NOT EXISTS product (
 );
 ---------------------------
 CREATE TABLE IF NOT EXISTS orders(
-    order_id SERIAL PRIMARY KEY,
+    orders_id SERIAL PRIMARY KEY,
     customer_id INT NOT NULL,
-    order_date TIMESTAMP NOT NULL DEFAULT ,
+    orders_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) NOT NULL,
     total_amount DECIMAL(12, 2) NOT NULL CHECK (total_amount >= 0),
-    created_at TIMESTAMP NOT NULL DEFAULT ,
+    created_at TIMESTAMP NOT NULL ,
 
     CONSTRAINT chk_status CHECK (status IN ('PLACED','PAID','SHIPPED', 'DELIVERED', 'CANCELLED','RETURNED')),
     CONSTRAINT chk_total_amount CHECK (total_amount >= 0),
@@ -93,19 +93,19 @@ CREATE TABLE IF NOT EXISTS orders(
         ON UPDATE CASCADE
 );
 ---------------------------
-CREATE TABLE IF NOT EXISTS order_item (
-    order_item_id BIGSERIAL PRIMARY KEY,
-    order_id INT NOT NULL,
+CREATE TABLE IF NOT EXISTS orders_item (
+    orders_item_id BIGSERIAL PRIMARY KEY,
+    orders_id INT NOT NULL,
     product_id INT NOT NULL,
-    order_date TIMESTAMP NOT NULL DEFAULT ,
+    orders_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     quantity INT NOT NULL CHECK (quantity > 0),
     unit_price DECIMAL(12, 2) NOT NULL CHECK (unit_price >= 0),
     subtotal DECIMAL(12, 2) GENERATED ALWAYS AS (quantity * unit_price) STORED,
-    created_at TIMESTAMP NOT NULL DEFAULT,
+    created_at TIMESTAMP NOT NULL,
 
     CONSTRAINT fk_order
-        FOREIGN KEY (order_id)
-        REFERENCES "order"(order_id)
+        FOREIGN KEY (orders_id)
+        REFERENCES orders(orders_id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
 
@@ -113,8 +113,9 @@ CREATE TABLE IF NOT EXISTS order_item (
         FOREIGN KEY (product_id)
         REFERENCES product(product_id)
         ON DELETE RESTRICT
-        ON UPDATE CASCADE
-    CONSTRAINT chk_created_at CHECK (created_at >= order_date)  
+        ON UPDATE CASCADE,
+
+    CONSTRAINT chk_created_at CHECK (created_at >= orders_date)  
 );
 ---------------------------
 CREATE TABLE IF NOT EXISTS promotion (
@@ -125,14 +126,14 @@ CREATE TABLE IF NOT EXISTS promotion (
     discount_value NUMERIC(12, 2) NOT NULL CHECK (discount_value >= 0 AND (discount_type = 'fixed_amount' OR discount_value <= 100)),
     start_date DATE NOT NULL CHECK(start_date >= DATE(created_at)),
     end_date DATE NOT NULL CHECK (end_date >= start_date),
-    created_at TIMESTAMP NOT NULL DEFAULT
+    created_at TIMESTAMP NOT NULL
 );
 ---------------------------
 CREATE TABLE IF NOT EXISTS promotion_product (
     promo_product_id SERIAL NOT NULL,
     promotion_id INT NOT NULL,
     product_id INT NOT NULL,
-    created_At TIMESTAMP NOT NULL DEFAULT,
+    created_At TIMESTAMP NOT NULL,
     PRIMARY KEY (promo_product_id),
     CONSTRAINT fk_product
         FOREIGN KEY (product_id)
@@ -143,7 +144,8 @@ CREATE TABLE IF NOT EXISTS promotion_product (
         FOREIGN KEY (promotion_id)
         REFERENCES promotion(promotion_id)
         ON DELETE RESTRICT
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+
     CONSTRAINT uq_promotion_product UNIQUE (promotion_id, product_id)
 
 );

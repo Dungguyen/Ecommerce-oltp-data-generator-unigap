@@ -1,19 +1,22 @@
 import random
-from datetime import datetime
-from typing import List
+import calendar
 
+from collections.abc import Iterator
 from psycopg import Connection
+from typing import List
+from datetime import timedelta, datetime
 
-from config.setting import NUM_ORDERS
+from config.setting import(
+    NUM_ORDERS,
+    BATCH_SIZE,
+)
+from core.batch_insert import batch_insert
 from data.orders_constants import (
     ORDER_STATUS,
     ORDER_STATUS_WEIGHTS,
 )
 from utils.faker_utils import fake
-from utils.logger import logger
 
-ORDER_START = datetime(2025, 1, 1)
-ORDER_END = datetime(2025, 12, 31)
 
 
 def load_customers(conn: Connection) -> List[int]:
@@ -27,51 +30,94 @@ def load_customers(conn: Connection) -> List[int]:
 
         return [row[0] for row in cur.fetchall()]
 
+def random_order_date() -> datetime:
+    """
+    Generate an order date distributed approximately
+    evenly across months.
+    """
 
-def generate_orders(
+    year = 2025
+
+    month = random.choice([1, 2, 3, 4, 5])
+
+    last_day = calendar.monthrange(
+        year,
+        month,
+    )[1]
+
+    start = datetime(
+        year,
+        month,
+        1,
+    )
+
+    end = datetime(
+        year,
+        month,
+        last_day,
+        23,
+        59,
+        59,
+    )
+
+    total_seconds = (
+        end - start
+    ).total_seconds()
+
+    offset = random.uniform(
+        0,
+        total_seconds,
+    )
+
+    return start + timedelta(
+        seconds=offset,
+    )
+def generate_orders_batches(
     conn: Connection,
-    num_records: int = NUM_ORDERS,
-) -> List[tuple]:
+    total_records: int = NUM_ORDERS,
+    batch_size: int = BATCH_SIZE,
+) -> Iterator[list[tuple]]:
 
     customer_ids = load_customers(conn)
 
-    orderss = []
+    generated = 0
 
-    for _ in range(num_records):
+    while generated < total_records:
 
-        customer_id = random.choice(customer_ids)
+        batch = []
 
-        orders_date = fake.date_time_between(
-            start_date=ORDER_START,
-            end_date=ORDER_END,
-        )
+        while len(batch) < batch_size and generated < total_records:
 
-        status = random.choices(
-            ORDER_STATUS,
-            weights=ORDER_STATUS_WEIGHTS,
-        )[0]
+            customer_id = random.choice(customer_ids)
 
-        created_at = orders_date
+            orders_date = random_order_date()
+            
+            status = random.choices(
+                ORDER_STATUS,
+                weights=ORDER_STATUS_WEIGHTS,
+                k=1,
+            )[0]
 
-        # Sẽ được cập nhật sau khi sinh order_item
-        total_amount = 0
 
-        orderss.append(
-            (
-                customer_id,
-                orders_date,
-                status,
-                total_amount,
-                created_at,
+            batch.append(
+                (
+                    customer_id,
+                    orders_date,
+                    status,
+                    0,
+                    orders_date,
+                )
             )
-        )
 
-    return orderss
+            generated += 1
+
+        if batch:
+            yield batch
 
 
 def insert_orders(
     conn: Connection,
-    num_records: int = NUM_ORDERS,
+    total_records: int = NUM_ORDERS,
 ) -> None:
 
     sql = """
@@ -94,22 +140,13 @@ def insert_orders(
         );
     """
 
-    data = generate_orders(
-        conn,
-        num_records,
+    batch_insert(
+        conn=conn,
+        sql=sql,
+        generator=generate_orders_batches(
+            conn,
+            total_records=total_records,
+            batch_size=BATCH_SIZE,
+        ),
+        entity_name="orders",
     )
-
-    try:
-        
-        with conn.cursor() as cur:
-            cur.executemany(sql,data)
-        conn.commit()
-
-        logger.info(
-            "Inserted %s orders.",
-            len(data),
-        )
-    except Exception as e:
-
-        conn.rollback()
-        raise

@@ -1,11 +1,17 @@
 import random 
-from datetime import datetime
-from typing import List 
+from typing import Iterator
 from psycopg import Connection
+from core.batch_insert import batch_insert
 from utils.faker_utils import fake
-from utils.logger import logger
+from config.setting import (
+    BATCH_SIZE,
+    MAX_PRODUCTS_PER_PROMOTION,
+    MIN_PRODUCTS_PER_PROMOTION,
+    DATA_START_DATE,
+    DATA_END_DATE,  
+)
 
-def load_promotions(conn: Connection) -> List[int]:
+def load_promotions(conn: Connection) -> list[int]:
 
     with conn.cursor() as cur:
         cur.execute("""
@@ -14,7 +20,7 @@ def load_promotions(conn: Connection) -> List[int]:
         """)
         return [row[0] for row in cur.fetchall()]
     
-def load_products(conn: Connection) -> List[int]:
+def load_products(conn: Connection) -> list[int]:
 
     with conn.cursor() as cur:
         cur.execute("""
@@ -23,51 +29,49 @@ def load_products(conn: Connection) -> List[int]:
         """)
         return [row[0] for row in cur.fetchall()]
     
-def generate_promotion_products(
+def generate_promotion_products_batches(
     conn: Connection,
-) -> List[tuple]:
-    
-    promotions = load_promotions(conn)
+    batch_size: int = BATCH_SIZE,
+) -> Iterator[list[tuple]]:
 
+    promotions = load_promotions(conn)
     products = load_products(conn)
 
-    data = []
-
-    used_pair = set()
+    batch = []
 
     for promotion_id in promotions:
-        num_products = random.randint(20,100)
+
+        num_products = random.randint(
+            MIN_PRODUCTS_PER_PROMOTION,
+            min(MAX_PRODUCTS_PER_PROMOTION, len(products)),
+        )
 
         selected_products = random.sample(
             products,
-            min(num_products, len(products))
+            num_products,
         )
 
         for product_id in selected_products:
 
-            pair = (
-                promotion_id,
-                product_id
-            )
-
-            if pair in used_pair:
-                continue
-
-            used_pair.add(pair)
-
             created_at = fake.date_time_between(
-                start_date="-6M",
-                end_date="now"
+                start_date=DATA_START_DATE,
+                end_date=DATA_END_DATE,
             )
 
-            data.append(
+            batch.append(
                 (
                     promotion_id,
                     product_id,
-                    created_at
+                    created_at,
                 )
             )
-    return data
+
+            if len(batch) >= batch_size:
+                yield batch
+                batch = []
+
+    if batch:
+        yield batch
 
 def insert_promotion_products(
     conn: Connection,
@@ -94,19 +98,9 @@ def insert_promotion_products(
         DO NOTHING;
     """
 
-    data = generate_promotion_products(conn)
-
-    try:
-
-        with conn.cursor() as cur:
-            cur.executemany(sql, data)
-        conn.commit()
-
-        logger.info(
-           "Insert %s promotion_produc records.",
-            len(data)
-        )
-    except Exception:
-        
-        conn.rollback()
-        raise
+    batch_insert(
+        conn=conn,
+        sql=sql,
+        generator=generate_promotion_products_batches(conn),
+        entity_name="promotion_products",
+    )
