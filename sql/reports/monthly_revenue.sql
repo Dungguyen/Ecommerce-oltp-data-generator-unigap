@@ -1,0 +1,1 @@
+SELECT * FROM fn_monthly_revenue('2025-01-01', '2025-05-31')

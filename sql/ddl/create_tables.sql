@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS orders(
         ON DELETE RESTRICT
         ON UPDATE CASCADE
 );
----------------------------
+--------------------------- 
 CREATE TABLE IF NOT EXISTS orders_item (
     orders_item_id BIGSERIAL PRIMARY KEY,
     orders_id INT NOT NULL,
@@ -150,3 +150,4 @@ CREATE TABLE IF NOT EXISTS promotion_product (
 
 );
 ----------------------------
+W
