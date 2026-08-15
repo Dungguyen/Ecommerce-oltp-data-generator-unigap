@@ -58,7 +58,6 @@ SELECT
 
     oi.orders_item_id,
     oi.product_id,
-
     oi.quantity,
     oi.unit_price,
     oi.subtotal,

@@ -5,6 +5,7 @@ CREATE OR REPLACE FUNCTION fn_monthly_revenue
 )
 RETURNS TABLE 
 (
+    report_month DATE,
     total_orders BIGINT,
     total_quantity BIGINT,
     total_revenue NUMERIC(18,2)
@@ -16,9 +17,8 @@ $$
 BEGIN
     RETURN QUERY
     SELECT 
-        fs.order_year,
-        fs.order_month,
-        count(DISTINCT fs.orders_id) as total_orders, 
+        MAKE_DATE(fs.order_year, fs.order_month, 1) AS report_month,
+        count(DISTINCT fs.orders_id)::BIGINT as total_orders, 
         SUM(fs.quantity)::BIGINT as total_quantity, 
         SUM(fs.total_amount)::NUMERIC(18,2) as total_revenue
     FROM vw_fact_sales fs
