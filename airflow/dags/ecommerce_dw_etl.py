@@ -70,7 +70,7 @@ with DAG(
 
     months = get_months()
 
-    @task
+    @task(max_active_tis_per_dag=1)
     def load_month(month_info):
         from airflow.providers.postgres.hooks.postgres import PostgresHook
 

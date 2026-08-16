@@ -1,11 +1,38 @@
-.venv
-.git
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Git
+.git/
 .gitignore
-__pycache__
-.pytest_cache
-.vscode
-.idea
 
-.env
+# Airflow runtime files
+airflow/logs/
+airflow/logs/**
+airflow/logs/**/*
+airflow/.airflowignore
 
-*.pyc
+# Python cache
+**/__pycache__/
+**/*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build/cache
+.pytest_cache/
+.mypy_cache/
