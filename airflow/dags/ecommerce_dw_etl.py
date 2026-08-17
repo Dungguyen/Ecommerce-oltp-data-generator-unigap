@@ -220,7 +220,7 @@ with DAG(
                  dbname=ecommerce_oltp
                  user=nguyendung
                  password=123456
-                 options=-c%20max_parallel_workers_per_gather%3D0',
+                 options=''-c max_parallel_workers_per_gather=0''',
                 $$
                     SELECT
                         o.orders_id,
