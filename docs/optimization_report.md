@@ -54,11 +54,6 @@ ORDER BY 1;
 
 ### Execution Plan – Before
 
-> Paste the output of `EXPLAIN (ANALYZE, BUFFERS)` here.
-
-```text
-PASTE BEFORE EXECUTION PLAN HERE
-```
 
 **Execution Time:** `___206.099__ ms`
 
